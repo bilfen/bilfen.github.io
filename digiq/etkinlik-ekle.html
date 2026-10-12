@@ -142,6 +142,21 @@
         </div>
 
         <div class="ge-alan">
+          <label>📅 Yayın tarihi (isteğe bağlı)</label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <label style="font-weight:600;font-size:.78rem;color:#64748b">Açılış (boş = onaylandığında hemen yayınlanır)</label>
+              <input type="datetime-local" id="geAcilis" style="width:100%;padding:9px 11px;border-radius:12px;border:1.5px solid #dbe6ff;background:#f8fbff;color:var(--murekkep,#1e293b);font-family:inherit;font-size:.9rem">
+            </div>
+            <div style="flex:1;min-width:200px">
+              <label style="font-weight:600;font-size:.78rem;color:#64748b">Kapanış (isteğe bağlı — boşsa süresiz açık kalır)</label>
+              <input type="datetime-local" id="geKapanis" style="width:100%;padding:9px 11px;border-radius:12px;border:1.5px solid #dbe6ff;background:#f8fbff;color:var(--murekkep,#1e293b);font-family:inherit;font-size:.9rem">
+            </div>
+          </div>
+          <p class="ge-not">Tarih girersen öğrencilere açılış saatine kadar soluk kartta <b>canlı geri sayım</b> görünür ve saat geldiğinde etkinlik otomatik açılır.</p>
+        </div>
+
+        <div class="ge-alan">
           <label>İçerik kaynağı *</label>
           <div class="ge-kaynak">
             <button type="button" class="ge-kaynak-btn secili" data-kaynak="dosya">📄 HTML dosyası yükle</button>
@@ -154,7 +169,7 @@
               📂 HTML dosyası seç <input type="file" id="geDosya" accept=".html,.htm,text/html" style="display:none">
             </label>
             <span class="ge-not" id="geDosyaAdi">Dosya seçilmedi</span>
-            <p class="ge-not">Tek dosyalık (HTML+CSS+JS bir arada) bir etkinlik seç. Dosya aynen saklanır; onaylanınca öğrenciler içinde çalıştırır.</p>
+            <p class="ge-not">Tek dosyalık (HTML+CSS+JS bir arada) bir etkinlik seç. En fazla <b>5 MB</b>. Dosya aynen saklanır; onaylanınca öğrenciler içinde çalıştırır.</p>
           </div>
 
           <div class="ge-kutu" id="geKutuDrive">
@@ -279,7 +294,7 @@
   $('geDosya').addEventListener('change', function () {
     var f = this.files && this.files[0];
     if (!f) { dosyaMetin = ''; $('geDosyaAdi').textContent = 'Dosya seçilmedi'; return; }
-    if (f.size > 700 * 1024) { hata('HTML dosyası en fazla 700 KB olabilir (' + Math.round(f.size/1024) + ' KB).'); this.value = ''; return; }
+    if (f.size > 5 * 1024 * 1024) { hata('HTML dosyası en fazla 5 MB olabilir (' + (f.size/1048576).toFixed(1) + ' MB).'); this.value = ''; return; }
     var okur = new FileReader();
     okur.onload = function () { dosyaMetin = String(okur.result || ''); $('geDosyaAdi').textContent = '✅ ' + f.name + ' (' + Math.round(f.size/1024) + ' KB)'; };
     okur.readAsText(f);
@@ -365,6 +380,7 @@
   }
 
   var acilisZamani = Date.now();
+  function dtIso(v) { if (!v) return null; var x = new Date(v); return isNaN(x.getTime()) ? null : x.toISOString(); }
 
   $('geForm').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -374,14 +390,18 @@
 
     if ($('geHoneypot').value) { hata('Gönderim reddedildi.'); return; }        /* bot kapanı */
     if (Date.now() - acilisZamani < 2500) { hata('Lütfen formu doldurup yeniden deneyin.'); return; }
-    if (!ad) { hata('Etkinlik adı girin.'); return; }
-    if (!$('geTema').value) { hata('Müfredat teması seçin (zorunlu).'); return; }
-    if (!konu) { hata('Konu & Tema yazın.'); return; }
-    if (!SECIMLER.length) { hata('En az bir kullanım yeri seçin: Sınıf, IPT ve/veya Öğretmen Aracı.'); return; }
-    if (!icerik) { hata('İçerik boş: dosya seçin, bağlantı girin ya da kod yapıştırın.'); return; }
+    if (!ad) { hata('Etkinlik adı girin (zorunlu alan).'); return; }
+    if (!$('geTema').value) { hata('Müfredat teması seçin (zorunlu alan).'); return; }
+    if (!konu) { hata('Konu & Tema yazın (zorunlu alan).'); return; }
+    if (!SECIMLER.length) { hata('En az bir kullanım yeri seçin (zorunlu alan): Sınıf, IPT ve/veya Öğretmen Aracı.'); return; }
+    if (!icerik) { hata('İçerik boş (zorunlu alan): dosya seçin, bağlantı girin ya da kod yapıştırın.'); return; }
     if (!gorsel) { hata('Önizleme görseli zorunlu: 🖼️ Görsel yükle ya da 📷 Oluştur ile görsel oluşturun.'); return; }
     if (tip === 'drive' && !/^https?:\/\//i.test(icerik)) { hata('Bağlantı http(s) ile başlamalı.'); return; }
-    if (gorsel && gorsel.length + icerik.length > 900 * 1024) { hata('Toplam içerik çok büyük (en fazla ~900 KB). Görseli kaldırıp tekrar deneyin.'); return; }
+    /* (v2.9) Yayın tarihleri: açılış/kapanış — boşsa onaylanınca hemen yayınlanır */
+    var acilisV = dtIso($('geAcilis').value);
+    var kapanisV = dtIso($('geKapanis').value);
+    if (acilisV && kapanisV && new Date(kapanisV) <= new Date(acilisV)) { hata('Kapanış tarihi, açılış tarihinden sonra olmalı.'); return; }
+    if (gorsel && gorsel.length + icerik.length > 5.5 * 1024 * 1024) { hata('Toplam içerik çok büyük (en fazla ~5 MB). Görseli küçültüp tekrar deneyin.'); return; }
     hata('');
 
     var govde = {
@@ -395,7 +415,9 @@
       tip: tip,
       icerik: icerik,
       durum: 'bekliyor',
-      gorsel: gorsel || ''
+      gorsel: gorsel || '',
+      acilis: acilisV || null,
+      kapanis: kapanisV || null
     };
 
     var btn = $('geGonderBtn');
@@ -456,6 +478,7 @@
     SECIMLER.length = 0;
     [].slice.call(document.querySelectorAll('.ge-token.secili')).forEach(function (b) { b.classList.remove('secili'); });
     dosyaMetin = ''; gorsel = ''; tip = 'dosya';
+    $('geAcilis').value = ''; $('geKapanis').value = '';
     $('geDosyaAdi').textContent = 'Dosya seçilmedi';
     $('geGorselDurum').textContent = 'Zorunlu: görsel yükleyin ya da 📷 Oluştur ile otomatik görsel oluşturun.';
     $('geGorselOnizle').style.display = 'none';

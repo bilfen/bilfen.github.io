@@ -396,14 +396,14 @@
       <input id="kSifre" type="password" autocomplete="new-password">
       <label>Şifre (tekrar)</label>
       <input id="kSifre2" type="password" autocomplete="new-password">
-      <div style="margin-top:16px"><button class="btn" id="kayitBtn" style="width:100%">Kampüsü Oluştur ve Kaydol</button></div>
+      <div style="margin-top:16px"><button class="btn" id="kayitBtn" style="width:100%">Kaydı Tamamla</button></div>
       <div class="hata" id="kHata"></div>
       <div class="alt-link">Zaten hesabın var mı? <a href="#" id="girisGec">Giriş yap</a></div>
       </div>
       <div id="kayitBasarili" style="display:none;text-align:center;padding:10px 4px">
-        <div style="font-size:44px">🎉</div>
-        <h3 style="margin:8px 0 6px;font-size:18px">Kayıt oldunuz, tebrikler!</h3>
-        <p class="kucuk-not" style="line-height:1.6">Kaydın yönetici onayına gönderildi.<br>Birkaç saat içinde <b>admin onayından</b> sonra giriş yapabilirsiniz.</p>
+        <div style="font-size:44px">📨</div>
+        <h3 style="margin:8px 0 6px;font-size:18px">Kaydın yönetici onayına gönderildi</h3>
+        <p class="kucuk-not" id="kayitBasariMetin" style="line-height:1.6">Kaydın admin onayına gitti ✅<br><b>Admin onaylayınca hesabınız aktif olacak</b> ve giriş yapabileceksiniz. 🔓<br>Kampüs yöneticinize haber vererek onayı hızlandırabilirsiniz.</p>
         <div style="margin-top:14px"><button class="btn ikincil" id="kayitSonrasiGiris">🔐 Girişe dön</button></div>
       </div>
     </div>
@@ -2030,7 +2030,7 @@
     $('ekranPanel').style.display = ad === 'panel' ? '' : 'none';
   }
 
-  function hataGoster(el, msg) { if (!el) return; el.textContent = msg; el.style.display = msg ? '' : 'none'; }
+  function hataGoster(el, msg) { if (!el) return; el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
   function bilgiGoster(el, msg) { if (!el) return; el.textContent = msg; el.style.display = msg ? '' : 'none'; }
 
   function basariModalGoster(ad, duzenleModu) {
@@ -3699,13 +3699,15 @@
     var k = $('kKullanici').value.trim();
     var s1 = $('kSifre').value;
     var s2 = $('kSifre2').value;
-    if (!KAMPUS_LISTESI.includes(kamp)) { hataGoster($('kHata'), 'Lütfen listeden bir kampüs seç.'); return; }
-    if (!ad || !k || !s1) { hataGoster($('kHata'), 'Lütfen tüm alanları doldur.'); return; }
+    if (!KAMPUS_LISTESI.includes(kamp)) { hataGoster($('kHata'), 'Kampüs seçin (zorunlu alan).'); return; }
+    if (!ad || !k || !s1) { hataGoster($('kHata'), 'Zorunlu alanları doldur: kampüs, ad soyad, kullanıcı adı ve şifre.'); return; }
     if (s1 !== s2) { hataGoster($('kHata'), 'Şifreler eşleşmiyor.'); return; }
     if (s1.length < 4) { hataGoster($('kHata'), 'Şifre en az 4 karakter olmalı.'); return; }
     hataGoster($('kHata'), '');
     $('kayitBtn').disabled = true;
     API.kayitOgretmen(kamp, ad, k, s1).then(function (o) {
+      var m = $('kayitBasariMetin');
+      if (m) m.innerHTML = '<b>@' + esc(k) + '</b> adlı kaydın admin onayına gitti ✅<br><b>Admin onaylayınca hesabınız aktif olacak</b> ve giriş yapabileceksiniz. 🔓<br>Kampüs yöneticinize haber vererek onayı hızlandırabilirsiniz.';
       $('kayitFormAlan').style.display = 'none';
       $('kayitBasarili').style.display = '';
     }).catch(function (e) {
