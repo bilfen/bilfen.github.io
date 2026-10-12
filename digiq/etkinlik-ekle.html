@@ -188,9 +188,9 @@
             <label class="ge-kaynak-btn" style="cursor:pointer">
               🖼️ Görsel yükle <input type="file" id="geGorsel" accept="image/*" style="display:none">
             </label>
-            <button type="button" class="ge-kaynak-btn" id="geGorselOlustur">📷 Oluştur</button>
+            <button type="button" class="ge-kaynak-btn" id="geGorselOlustur">📷 Oluştur (ekran görüntüsü)</button>
           </div>
-          <span class="ge-not" id="geGorselDurum">Zorunlu: görsel yükleyin ya da 📷 Oluştur ile otomatik görsel oluşturun.</span>
+          <span class="ge-not" id="geGorselDurum">Dosya seçince veya kod yapışınca ekran görüntüsü otomatik alınır; ya da 📷 Oluştur'a basın.</span>
           <img id="geGorselOnizle" alt="" style="display:none;max-width:140px;max-height:90px;border-radius:10px;margin-top:8px;border:2px solid #dbe6ff">
         </div>
 
@@ -280,23 +280,23 @@
     [].slice.call(document.querySelectorAll('.ge-token')).forEach(function (b) {
       b.classList.toggle('secili', SECIMLER.indexOf(b.dataset.token) >= 0);
     });
-  });
-  kaynakBtnlar.forEach(function (b) {
-    b.addEventListener('click', function () {
-      tip = b.dataset.kaynak;
-      kaynakBtnlar.forEach(function (x) { x.classList.toggle('secili', x === b); });
-      $('geKutuDosya').classList.toggle('acik', tip === 'dosya');
-      $('geKutuDrive').classList.toggle('acik', tip === 'drive');
-      $('geKutuKod').classList.toggle('acik', tip === 'kod');
+  });    kaynakBtnlar.forEach(function (b) {
+      b.addEventListener('click', function () {
+        tip = b.dataset.kaynak;
+        kaynakBtnlar.forEach(function (x) { x.classList.toggle('secili', x === b); });
+        $('geKutuDosya').classList.toggle('acik', tip === 'dosya');
+        $('geKutuDrive').classList.toggle('acik', tip === 'drive');
+        $('geKutuKod').classList.toggle('acik', tip === 'kod');
+        otomatikEkranGorunumu();
+      });
     });
-  });
 
   $('geDosya').addEventListener('change', function () {
     var f = this.files && this.files[0];
-    if (!f) { dosyaMetin = ''; $('geDosyaAdi').textContent = 'Dosya seçilmedi'; return; }
+    if (!f) { dosyaMetin = ''; $('geDosyaAdi').textContent = 'Dosya seçilmedi'; otomatikEkranGorunumu(); return; }
     if (f.size > 5 * 1024 * 1024) { hata('HTML dosyası en fazla 5 MB olabilir (' + (f.size/1048576).toFixed(1) + ' MB).'); this.value = ''; return; }
     var okur = new FileReader();
-    okur.onload = function () { dosyaMetin = String(okur.result || ''); $('geDosyaAdi').textContent = '✅ ' + f.name + ' (' + Math.round(f.size/1024) + ' KB)'; };
+    okur.onload = function () { dosyaMetin = String(okur.result || ''); $('geDosyaAdi').textContent = '✅ ' + f.name + ' (' + Math.round(f.size/1024) + ' KB)'; otomatikEkranGorunumu(); };
     okur.readAsText(f);
     $('geDosyaAdi').textContent = 'Okunuyor…';
   });
@@ -315,7 +315,74 @@
     okur.readAsDataURL(f);
   });
 
-  /* Görsel yoksa anlık SVG oluştur (panel ile aynı üretici) */
+  /* -------- (v2.9.1) Ekran görüntüsü üretici: HTML içeriğini gizli iframe'de
+     render edip canvas'a çizer (screenshot). Dönüş: JPEG dataURL. -------- */
+  var EKRAN_W = 800, EKRAN_H = 560, JPEG_Q = 0.72;
+  function ekranGorunumu(icerik, sureMs) {
+    return new Promise(function (coz, reddet) {
+      var frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + EKRAN_W + 'px;height:' + EKRAN_H + 'px;border:0;';
+      frame.srcdoc = String(icerik || '');
+      var bitti = false;
+      var temizle = function (sonuc) {
+        if (bitti) return; bitti = true;
+        try { frame.remove(); } catch (e) {}
+        sonuc instanceof Error ? reddet(sonuc) : coz(sonuc);
+      };
+      frame.onload = function () {
+        setTimeout(function () {
+          try {
+            var w = frame.contentWindow, d = w.document;
+            var sw = Math.max(d.documentElement.scrollWidth || 0, EKRAN_W);
+            var sh = Math.max(d.documentElement.scrollHeight || 0, EKRAN_H);
+            /* XMLSerializer: DOM'u geçerli XHTML'e çevirir (kapali etiket vs.) —
+               foreignObject strict XML istedigi icin outerHTML yeterli degil. */
+            var htmlStr = new XMLSerializer().serializeToString(d.documentElement);
+            var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + EKRAN_W + '" height="' + EKRAN_H + '">' +
+              '<foreignObject width="100%" height="100%">' +
+              '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + sw + 'px;height:' + sh + 'px;transform:scale(' + (EKRAN_W / sw) + ');transform-origin:top left;background:white">' +
+              htmlStr +
+              '</div></foreignObject></svg>';
+            var img = new Image();
+            img.onload = function () {
+              var canvas = document.createElement('canvas');
+              canvas.width = EKRAN_W; canvas.height = EKRAN_H;
+              var ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, EKRAN_W, EKRAN_H);
+              ctx.drawImage(img, 0, 0);
+              temizle(canvas.toDataURL('image/jpeg', JPEG_Q));
+            };
+            img.onerror = function () { temizle(new Error('render-gorsel-yuklenemedi')); };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+          } catch (e) { temizle(new Error('render-hata:' + e.message)); }
+        }, sureMs || 700);
+      };
+      document.body.appendChild(frame);
+      setTimeout(function () { temizle(new Error('sure-asimi')); }, 8000);
+    });
+  }
+
+  /* -------- (v2.9.1) Otomatik screenshot: dosya seçilince / kod yapıştırınca
+     çalışır; içerik boşalınca görseli temizler. Drive için çalışmaz. -------- */
+  var otomatikZaman = null;
+  function otomatikEkranGorunumu() {
+    clearTimeout(otomatikZaman);
+    if (tip === 'drive') { return; }
+    var icerik = icerikBul();
+    if (!icerik) { gorsel = ''; $('geGorselOnizle').style.display = 'none'; $('geGorselDurum').textContent = 'Dosya seçince veya kod yapışınca ekran görüntüsü otomatik alınır.'; return; }
+    otomatikZaman = setTimeout(function () {
+      $('geGorselDurum').textContent = '📷 Ekran görüntüsü alınıyor…';
+      ekranGorunumu(icerik).then(function (dataUrl) {
+        gorselUygula(dataUrl, '✅ Ekran görüntüsü otomatik alındı');
+      }).catch(function (e2) {
+        hata('Ekran görüntüsü alınamadı (' + e2.message + '), SVG görsel ile devam ediliyor.');
+        gorselUygula(gorselOlustur($('geEtkinlikAd').value.trim() || 'Etkinlik', tip, $('geKonu').value.trim()), '✅ SVG görsel oluşturuldu (screenshot çalışmadı)');
+      });
+    }, 600);
+  }
+
+  /* SVG yedek üretici — screenshot başarısız olursa bunu kullan */
   function ozelHash(s) {
     var h = 0;
     for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
@@ -363,8 +430,19 @@
   $('geGorselOlustur').addEventListener('click', function () {
     var ad = $('geEtkinlikAd').value.trim() || 'Etkinlik';
     var konu = $('geKonu').value.trim();
-    gorselUygula(gorselOlustur(ad, tip, konu), '✅ Görsel oluşturuldu');
-    hata('');
+    var icerik = icerikBul();
+    if ((tip === 'dosya' || tip === 'kod') && icerik) {
+      $('geGorselDurum').textContent = '📷 Ekran görüntüsü alınıyor…';
+      ekranGorunumu(icerik).then(function (dataUrl) {
+        gorselUygula(dataUrl, '✅ Ekran görüntüsü alındı');
+      }).catch(function (e2) {
+        hata('Ekran görüntüsü alınamadı (' + e2.message + '), SVG görsel ile devam ediliyor.');
+        gorselUygula(gorselOlustur(ad, tip, konu), '✅ SVG görsel oluşturuldu (screenshot çalışmadı)');
+      });
+    } else {
+      gorselUygula(gorselOlustur(ad, tip, konu), '✅ Görsel oluşturuldu');
+      hata('');
+    }
   });
 
   function hata(m) {
@@ -455,6 +533,9 @@
     });
   }
 
+  $('geKod').addEventListener('input', otomatikEkranGorunumu);
+  $('geDrive').addEventListener('input', function () { if (tip === 'drive') { gorsel = ''; $('geGorselDurum').textContent = 'Drive bağlantısı için görsel yükleyin ya da SVG görsel oluşturun.'; } });
+
   $('geOnizleBtn').addEventListener('click', function () {
     var icerik = icerikBul();
     if (tip === 'drive') { hata('Bağlantı önizlenemez; onaylanınca öğrenciler yeni sekmede açar.'); return; }
@@ -480,7 +561,8 @@
     dosyaMetin = ''; gorsel = ''; tip = 'dosya';
     $('geAcilis').value = ''; $('geKapanis').value = '';
     $('geDosyaAdi').textContent = 'Dosya seçilmedi';
-    $('geGorselDurum').textContent = 'Zorunlu: görsel yükleyin ya da 📷 Oluştur ile otomatik görsel oluşturun.';
+    if (otomatikZaman) { clearTimeout(otomatikZaman); otomatikZaman = null; }
+    $('geGorselDurum').textContent = 'Dosya seçince veya kod yapışınca ekran görüntüsü otomatik alınır.';
     $('geGorselOnizle').style.display = 'none';
     kaynakBtnlar.forEach(function (x, i) { x.classList.toggle('secili', i === 0); });
     $('geKutuDosya').classList.add('acik');

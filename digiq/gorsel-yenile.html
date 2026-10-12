@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Görsel Yenileme Aracı — Bilfen DigiQuest</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 16px; background: #f8fafc; color: #1e293b; }
+  .kart { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 4px 14px rgba(0,0,0,.06); margin-bottom: 16px; }
+  .satir { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+  .satir img { width: 96px; height: 67px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .durum-ok { color: #16a34a; font-weight: 700; }
+  .durum-h { color: #dc2626; font-weight: 700; }
+  .durum-at { color: #f59e0b; font-weight: 700; }
+  button { padding: 10px 18px; border-radius: 10px; border: 0; background: #4f46e5; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .ilerleme { height: 8px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .ilerleme > div { height: 100%; background: #4f46e5; transition: width .3s; }
+  pre { font-size: 11px; background: #0f172a; color: #a5f3fc; padding: 10px; border-radius: 8px; overflow: auto; max-height: 180px; }
+</style>
+</head>
+<body>
+<h2>🖼️ Görsel Yenileme Aracı</h2>
+<p>Dosya/kod tipli her etkinliğin HTML içeriğini gizli iframe'de render edip ekran görüntüsünü <b>gorsel</b> kolonuna yazar. Drive bağlantılı etkinlikler atlanır (bağlantıların görünümü çekilemez).</p>
+<div class="kart">
+  <button id="baslatBtn">▶ Görselleri Yenile</button>
+  <div class="ilerleme"><div id="ilerlemeCubuk" style="width:0%"></div></div>
+  <div id="ozet" class="kucuk">Henüz başlanmadı.</div>
+</div>
+<div class="kart" id="liste"></div>
+<pre id="log"></pre>
+<iframe id="gizliFrame" style="position:fixed;left:-10000px;top:0;width:800px;height:560px;border:0;" sandbox="allow-scripts allow-same-origin"></iframe>
+
+<script>
+(function () {
+  'use strict';
+  var LS_URL = localStorage.getItem('bt_supabase_url');
+  var CFG = {
+    url: LS_URL === null ? 'https://zvqwhesibqntcnpqoytm.supabase.co' : LS_URL,
+    anon: localStorage.getItem('bt_supabase_anon') || 'sb_publishable_hU6il_Kq9_E_57WqaOT8BA_iLtDPpuM'
+  };
+  var EKRAN_W = 800, EKRAN_H = 560;
+  var lista = document.getElementById('liste');
+  var log = document.getElementById('log');
+  function yaz(msg) { log.textContent += msg + '\n'; log.scrollTop = log.scrollHeight; }
+
+  function sb(path, opts) {
+    opts = opts || {};
+    return fetch(CFG.url + '/rest/v1/' + path, Object.assign({
+      headers: { 'apikey': CFG.anon, 'Authorization': 'Bearer ' + CFG.anon, 'Content-Type': 'application/json' }
+    }, opts)).then(function (r) {
+      if (!r.ok) return r.json().catch(function(){return{};}).then(function (j) { throw new Error((j.message || ('HTTP ' + r.status)) + ' ' + JSON.stringify(j).slice(0, 300)); });
+      return r.status === 204 ? null : r.json();
+    });
+  }
+
+  /* Screenshot: HTML'i iframe'de feed et, SVG foreignObject'e serialize, canvas'a çiz */
+  function ekranGorunumu(icerik, frame, sureMs) {
+    return new Promise(function (coz, reddet) {
+      var bitti = false;
+      var temizle = function (sonuc) {
+        if (bitti) return; bitti = true;
+        sonuc instanceof Error ? reddet(sonuc) : coz(sonuc);
+      };
+      frame.onload = function () {
+        setTimeout(function () {
+          try {
+            var d = frame.contentWindow.document;
+            var sw = Math.max(d.documentElement.scrollWidth || 0, 400);
+            var sh = Math.max(d.documentElement.scrollHeight || 0, 300);
+            /* XMLSerializer: DOM'u geçerli XHTML'e çevirir (kapali etiket vs.) —
+               foreignObject strict XML istedigi icin outerHTML yeterli degil. */
+            var htmlStr = new XMLSerializer().serializeToString(d.documentElement);
+            var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + EKRAN_W + '" height="' + EKRAN_H + '">' +
+              '<foreignObject width="100%" height="100%">' +
+              '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + sw + 'px;height:' + sh + 'px;transform:scale(' + (EKRAN_W / sw) + ');transform-origin:top left;background:white">' +
+              htmlStr +
+              '</div></foreignObject></svg>';
+            var img = new Image();
+            img.onload = function () {
+              var canvas = document.createElement('canvas');
+              canvas.width = EKRAN_W; canvas.height = EKRAN_H;
+              var ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, EKRAN_W, EKRAN_H);
+              ctx.drawImage(img, 0, 0);
+              temizle(canvas.toDataURL('image/jpeg', 0.72));
+            };
+            img.onerror = function () { temizle(new Error('render-resim-hata')); };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+          } catch (e) { temizle(new Error('render-' + e.message)); }
+        }, sureMs || 700);
+      };
+      frame.srcdoc = String(icerik || '');
+      setTimeout(function () { temizle(new Error('sure-asimi')); }, 8000);
+    });
+  }
+
+  function imgYukle(gorsel) { return new Promise(function (c) { var i = new Image(); i.onload = function(){c(true);}; i.onerror = function(){c(false);}; i.src = gorsel; }); }
+
+  function svgYedek(ad) {
+    var palettes = [['#6366f1','#a78bfa'],['#ec4899','#f9a8d4'],['#f59e0b','#fcd34d'],['#10b981','#6ee7b7'],['#ef4444','#fca5a5'],['#8b5cf6','#d8b4fe'],['#0ea5e9','#7dd3fc'],['#f97316','#fdba74']];
+    var ikonlar = ['✂️','🔬','🚀','🎮','💻','⭐','📚','⚡'];
+    var h = 0; for (var i = 0; i < (ad||'').length; i++) h = ((h<<5)-h+ad.charCodeAt(i))|0; h = Math.abs(h);
+    var r = palettes[h % palettes.length];
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="'+r[0]+'"/><stop offset="100%" stop-color="'+r[1]+'"/></linearGradient></defs><rect width="400" height="280" rx="18" fill="url(#g)"/><text x="200" y="120" text-anchor="middle" font-size="56">'+ikonlar[h%8]+'</text><text x="200" y="180" text-anchor="middle" font-size="22" font-weight="bold" fill="white" font-family="system-ui">'+ad.slice(0,30).replace(/</g,'&lt;')+'</text></svg>';
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  }
+
+  document.getElementById('baslatBtn').addEventListener('click', function () {
+    var btn = this; btn.disabled = true;
+    yaziLo('Etkinlikler çekiliyor…');
+    sb('ozel_etkinlik?select=id,ad,tip,icerik,gorsel&order=olusturma_tarihi').then(function (etk) {
+      var hedef = etk.filter(function (e) { return e.tip === 'dosya' || e.tip === 'kod'; });
+      var drive = etk.filter(function (e) { return e.tip === 'drive'; });
+      yaz('TOPLAM: ' + etk.length + ' — hedef: ' + hedef.length + ' (dosya/kod), atlanacak: ' + drive.length + ' (drive)');
+      frame = document.getElementById('gizliFrame');
+      var frame = document.getElementById('gizliFrame');
+      var i = 0, basari = 0, hata = 0, svgYedekSayisi = 0;
+
+      function siradaki() {
+        if (i >= hedef.length) {
+          document.getElementById('ozet').innerHTML = '✅ ' + basari + ' yenilendi · ❌ ' + hata + ' hata · 🔄 ' + svgYedekSayisi + ' SVG yedeğe düştü · Drive: ' + drive.length + ' atlandı';
+          btn.disabled = false;
+          return;
+        }
+        var e = hedef[i];
+        document.getElementById('ilerlemeCubuk').style.width = (i / hedef.length * 100) + '%';
+        ekranGorunumu(e.icerik, frame).then(function (dataUrl) {
+          if (!dataUrl || dataUrl.length < 2500) throw new Error('bos-gorsel');
+          return imgYukle(dataUrl).then(function (gorselLoaded) {
+            if (!gorselLoaded) throw new Error('img-yuklenemedi');
+            return sb('ozel_etkinlik?id=eq.' + e.id, { method: 'PATCH', body: JSON.stringify({ gorsel: dataUrl }) });
+          });
+        }).then(function (dataUrl2) {
+          basari++;
+          satirEkle(e.ad, dataUrl2, 'ok', 'screenshot');
+        }).catch(function (er) {
+          yaz('HATA ' + e.ad + ': ' + er.message + ' — SVG yedeğe düşüyorum');
+          var svgData = svgYedek(e.ad);
+          return sb('ozel_etkinlik?id=eq.' + e.id, { method: 'PATCH', body: JSON.stringify({ gorsel: svgData }) }).then(function () {
+            svgYedekSayisi++;
+            satirEkle(e.ad, null, 'svg', er.message);
+          });
+        }).then(function () { i++; setTimeout(siradaki, 300); }).catch(function (er) { hata++; yaz('PATCH hatası ' + e.ad + ': ' + er.message); satirEkle(e.ad, null, 'h', er.message); i++; setTimeout(siradaki, 300); });
+      }
+      siradaki();
+    }).catch(function (er) { yaz('Başlangıç hatası: ' + er.message); btn.disabled = false; });
+  });
+
+  function yaziLo(m) { document.getElementById('ozet').textContent = m; }
+  function satirEkle(ad, imgSrc, durum, not_) {
+    var d = document.createElement('div'); d.className = 'satir';
+    var img = document.createElement('img');
+    if (imgSrc) img.src = imgSrc;
+    d.appendChild(img);
+    var d2 = document.createElement('div'); d2.style.flex = '1';
+    d2.innerHTML = '<b>' + ad + '</b><br><span class="' + (durum === 'ok' ? 'durum-ok' : durum === 'svg' ? 'durum-at' : 'durum-h') + '">' + (durum === 'ok' ? '✅ ekran görüntüsü' : durum === 'svg' ? '🔄 SVG yedeği' : '❌ hata') + ' — ' + not_ + '</span>';
+    d.appendChild(d2);
+    liste.insertBefore(d, liste.firstChild);
+  }
+  function dataUrlGoster(x) { return x; }
+})();
+</script>
+</body>
+</html>
