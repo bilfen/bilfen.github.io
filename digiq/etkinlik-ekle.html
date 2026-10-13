@@ -318,12 +318,19 @@
   /* -------- (v2.9.1) Ekran görüntüsü üretici: HTML içeriğini gizli iframe'de
      render edip canvas'a çizer (screenshot). Dönüş: JPEG dataURL. -------- */
   var EKRAN_W = 800, EKRAN_H = 560, JPEG_Q = 0.72;
+  /* htmlSarmala: fragment kodu tam HTML'e çevirir (portalın htmlSarmala ile aynı) */
+  function htmlSarmala(kod) {
+    var k = String(kod || '').trim();
+    if (!k) return '';
+    if (/<!doctype\s+html>/i.test(k) || /<html[\s>]/i.test(k)) return k;
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + k + '</body></html>';
+  }
   function ekranGorunumu(icerik, sureMs) {
     return new Promise(function (coz, reddet) {
       var frame = document.createElement('iframe');
       frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
       frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + EKRAN_W + 'px;height:' + EKRAN_H + 'px;border:0;';
-      frame.srcdoc = String(icerik || '');
+      frame.srcdoc = htmlSarmala(icerik);
       var bitti = false;
       var temizle = function (sonuc) {
         if (bitti) return; bitti = true;
@@ -368,7 +375,14 @@
   var otomatikZaman = null;
   function otomatikEkranGorunumu() {
     clearTimeout(otomatikZaman);
-    if (tip === 'drive') { return; }
+    if (tip === 'drive') {
+      /* Drive: harici site cross-origin olduğu için tarayıcı içinden raster çizilemez.
+         Öğretmen ya görsel yükler ya da ayrı bir ekran görüntüsü dosyası ekler. */
+      gorsel = '';
+      $('geGorselOnizle').style.display = 'none';
+      $('geGorselDurum').textContent = 'Drive bağlantısına otomatik ekran görüntüsü alınamaz — 🖼️ Görsel yükle ile bir ekran görüntüsü ekleyin.';
+      return;
+    }
     var icerik = icerikBul();
     if (!icerik) { gorsel = ''; $('geGorselOnizle').style.display = 'none'; $('geGorselDurum').textContent = 'Dosya seçince veya kod yapışınca ekran görüntüsü otomatik alınır.'; return; }
     otomatikZaman = setTimeout(function () {

@@ -1,0 +1,6 @@
+# Üretim çıktıları (büyük dosyalar) repoya dahil edilmez
+shots/
+*.png
+*.json
+progress.txt
+targets.txt
