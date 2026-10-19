@@ -170,7 +170,12 @@ function ozelEtkinlikleriYukle() {
     .then(function (r) { return r.json(); })
     .catch(function () { return []; });
   return Promise.all([gorunum, atamalar]).then(function (sonuc) {
-    var rows = sonuc[0] || [];
+    /* (v2.9.6) En yeni etkinlik üstte: görünüm olusturma_tarihi artan gelir;
+       burada ters çevrilir. Bütün gruplar (bütün sınıf + IPT) ve aramada da
+       portal bu sırayla en yeni etkinliği önce gösterir. */
+    var rows = (sonuc[0] || []).slice().sort(function (a, b) {
+      return String(b.olusturma_tarihi || '').localeCompare(String(a.olusturma_tarihi || ''));
+    });
     var atamaMap = {};
     (sonuc[1] || []).forEach(function (a) { if (a && a.oyun_id) atamaMap[a.oyun_id] = a; });
     /* Statik etkinliklere atama durumunu uygula ('ozel:' önekli anahtarlar özel etkinliklerin) */
@@ -204,6 +209,8 @@ function ozelEtkinlikleriYukle() {
         kazanimlar: [],
         sure: '',
         materyaller: [],
+        /* (v2.9.6) En yeni önce sıralama için gizli timestamp alanı */
+        _tarih: o.olusturma_tarihi || '',
         _ozelId: o.id
       };
     });

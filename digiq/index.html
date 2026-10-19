@@ -569,7 +569,8 @@
       baslik.append(seviye, h2, cizgi);
       var kartlar = document.createElement('div');
       kartlar.className = 'kartlar';
-      r.sonuc.forEach(function (o, i) { kartlar.appendChild(kartYap(o, i)); });
+      /* (v2.9.6) Arama sonuçları da en yeni önce sıralanır */
+      enYeniOnce(r.sonuc).forEach(function (o, i) { kartlar.appendChild(kartYap(o, i)); });
       bolum.append(baslik, kartlar);
       icerik.appendChild(bolum);
       setTimeout(function () { gsapKartGiris(); gsapKartHover(); }, 100);
@@ -995,6 +996,21 @@
   /* (v2) Öğretmen araçları portaldan çıkarıldı — rehber artık kullanılmıyor. */
   function rehberYap() { return null; }
 
+  /* (v2.9.6) En yeni önce sıralama: bütün gruplar (bütün sınıf + IPT bölümleri)
+     ve arama sonuçlarında en son eklenen etkinlik en üstte görünür.
+     Statik etkinlikler dizideki sırasını korur (elimizle dizildi); özel
+     etkinlikler portal-data.js'te zaten en yeni önce gelir — buradaki
+     _ozelSira katmanı yalnız iki dizinin birleşimini sabitler. */
+  function enYeniOnce(liste) {
+    var statik = [], ozel = [];
+    liste.forEach(function (o) { (o.ozel ? ozel : statik).push(o); });
+    /* Supabase satırlarının gerçek tarihleriyle ikincil sıra baz (timestamp gizli alan) */
+    ozel.sort(function (a, b) {
+      return String(b._tarih || '').localeCompare(String(a._tarih || ''));
+    });
+    return ozel.concat(statik);
+  }
+
   /* ---------- Bölümler ---------- */
   function render() {
     /* Arama modu: sonuçlar zaten aramaUygula tarafından çizildi. */
@@ -1038,12 +1054,12 @@
     }
 
     bolumler.forEach((bl) => {
-      const etkinlikler = tumEtkinlikler.filter(o =>
+      const etkinlikler = enYeniOnce(tumEtkinlikler.filter(o =>
             (o.kategoriler || []).includes(bl.no) || (o.siniflar || []).includes(bl.no)
             /* (v2.7.8) Seviye seçilmeyen özel etkinlikler tüm seviyelere açıktır;
                bölüm filtresine takılırsa hiç görünmezlerdi. */
             || o.herkese === true
-          );
+          ));
 
       const bolum = document.createElement('section');
       bolum.className = 'sinifli';
