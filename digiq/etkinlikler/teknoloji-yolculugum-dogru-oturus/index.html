@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doğru Oturuş Pozisyonları — Bilfen DigiQuest</title>
+<!--
+  TEKNOLOJİ YOLCULUĞUM BAŞLIYOR - 1. SINIF - DOĞRU OTURUŞ POZİSYONLARI (Quiz)
+  Bilfen Bilişim Zümresi tarafından Wordwall karşıtı olarak sıfırdan yazıldı.
+  Sorular: doğru oturuş, ekran mesafesi, klavye-fare kullanımı konuları.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .kart { background: #fff; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-width: 640px; width: 100%; padding: 32px; text-align: center; }
+  .rozet { display: inline-block; background: #eef2ff; color: #4f46e5; padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; margin-bottom: 14px; }
+  h1 { color: #1e293b; font-size: 24px; margin-bottom: 6px; }
+  .alt { color: #64748b; font-size: 14px; margin-bottom: 22px; }
+  .ilerleme { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .ilerleme > div { height: 100%; background: linear-gradient(90deg,#0ea5e9,#6366f1); transition: width .3s; }
+  .soru { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 18px; line-height: 1.5; }
+  .secenek { display: block; width: 100%; padding: 14px 18px; margin-bottom: 10px; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 16px; font-weight: 600; color: #334155; cursor: pointer; transition: all .15s; text-align: left; }
+  .secenek:hover { border-color: #6366f1; background: #eef2ff; transform: translateX(4px); }
+  .secenek.dogru { background: #dcfce7; border-color: #16a34a; color: #166534; }
+  .secenek.yanlis { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+  .secenek:disabled { cursor: default; }
+  .geri-bildirim { min-height: 46px; margin-top: 8px; font-weight: 700; font-size: 16px; }
+  .geri-bildirim.ok { color: #16a34a; }
+  .geri-bildirim.hata { color: #dc2626; }
+  .neden { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #92400e; margin-top: 8px; text-align: left; line-height: 1.5; }
+  .skor-kutusu { display: flex; justify-content: space-between; color: #64748b; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .sonuc { display: none; }
+  .sonuc .baslik { font-size: 28px; margin-bottom: 10px; }
+  .sonuc .puan { font-size: 44px; font-weight: 900; color: #6366f1; margin-bottom: 14px; }
+  .btn { display: inline-block; padding: 14px 40px; border: none; border-radius: 14px; background: #6366f1; color: #fff; font-size: 17px; font-weight: 800; cursor: pointer; margin-top: 12px; }
+  .btn:hover { background: #4f46e5; }
+  .yildiz { font-size: 52px; }
+</style>
+</head>
+<body>
+<div class="kart" id="quizKart">
+  <div id="oynaNokta">
+    <span class="rozet">1. SINIF · TEKNOLOJİ YOLCULUĞUM</span>
+    <h1>💻 Doğru Oturuş Pozisyonları</h1>
+    <p class="alt">Bilgisayarda nasıl doğru otururuz? Her soru için en iyi cevabı seç!</p>
+    <div class="skor-kutusu"><span id="soruSayi">Soru 1</span><span id="skorMetin">Puan: 0</span></div>
+    <div class="ilerleme"><div id="ilerlemeCubuk" style="width:0%"></div></div>
+    <div class="soru" id="soruMetin"></div>
+    <div id="secenekler"></div>
+    <div class="geri-bildirim" id="geriBildirim"></div>
+  </div>
+  <div id="sonucKart" class="sonuc">
+    <div class="yildiz" id="sonucEmoji">🏆</div>
+    <div class="baslik">Quiz Bitti!</div>
+    <div class="puan" id="sonucPuan"></div>
+    <p id="sonucMesaj" style="color:#64748b;margin-bottom:6px"></p>
+    <button class="btn" onclick="location.reload()">🔄 Tekrar Oyna</button>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var SORULAR = [
+    { s: 'Bilgisayarda çalışırken gözlerin ekrana bakması için doğru mesafe nedir?', sec: ['50–70 cm (bir kol boyu)', '5–10 cm (çok yakın)', '2 metre (çok uzak)'], d: 0, n: 'Ekran, gözden yaklaşık 50–70 cm uzakta olmalı: bir kol boyu mesafe.' },
+    { s: 'Doğru oturuş için sırtımız nasıl olmalı?', sec: ['Kambur ve öne eğik', 'Dik, sandalyeye yaslanmış', 'Ayakta dikilerek'], d: 1, n: 'Sırt dik olmalı; sandalyeye yaslanarak oturmak beli korur.' },
+    { s: 'Klavye kullanırken bileklerimiz nasıl durmalı?', sec: ['Masaya gevşek ve düz', 'Yukarı kıvrılmış', 'Cepte'], d: 0, n: 'Bilekler masaya gevşek ve düz konmalı; yukarı kıvrılırsa yorulur.' },
+    { s: 'Ayaklar doğru oturuşta nerede olmalı?', sec: ['Havada sallanarak', 'Sandalyenin üstünde', 'Düz biçimde yerde'], d: 2, n: 'Ayak tabanları yere düz basmalı; bu pozu dengeler.' },
+    { s: 'Ekranın parlaklığı nasıl ayarlanmalıdır?', sec: ['En yüksek seviyede', 'Gözü yormayacak düzeyde', 'En düşük seviyede'], d: 1, n: 'Parlaklık ortamla dengeli olmalı; aşırı parlaklık gözü yorar.' },
+    { s: 'Uzun süre bilgisayarda çalışınca ne yapmalıyız?', sec: ['Ara verip gözlerimizi dinlendirmeliyiz', 'Hiç ara vermeden devam etmeliyiz', 'Ekranı gözümüze yaklaştırmalıyız'], d: 0, n: 'Her 20 dakikada bir kısa ara vermek göz ve kasa iyi gelir.' },
+    { s: 'Fareyi tutarken elimiz nasıl olmalı?', sec: ['Sertçe sıkmalı', 'Rahat ve hafif tutmalı', 'Başparmakla vurmalı'], d: 1, n: 'Fare rahat tutulmalı; sıkmak eli yorar.' },
+    { s: 'Bilgisayar başında yemek yemek doğru mudur?', sec: ['Doğru, zaman kazandırır', 'Yanlış, cihaza zarar verir ve kirletir', 'Sadece su içilebilir'], d: 1, n: 'Yeme-içme klavyeye ve fareye dökülebilir; bilgisayarı kirletir.' }
+  ];
+  var i = 0, puan = 0, kilitli = false;
+  var soruSayiEl = document.getElementById('soruSayi');
+  var skorEl = document.getElementById('skorMetin');
+  var cubukEl = document.getElementById('ilerlemeCubuk');
+  var soruEl = document.getElementById('soruMetin');
+  var seceneklerEl = document.getElementById('secenekler');
+  var geriEl = document.getElementById('geriBildirim');
+
+  function soruGoster() {
+    kilitli = false;
+    geriEl.textContent = ''; geriEl.className = 'geri-bildirim';
+    soruSayiEl.textContent = 'Soru ' + (i + 1) + ' / ' + SORULAR.length;
+    skorEl.textContent = 'Puan: ' + puan;
+    cubukEl.style.width = (i / SORULAR.length * 100) + '%';
+    var q = SORULAR[i];
+    soruEl.textContent = q.s;
+    seceneklerEl.innerHTML = '';
+    q.sec.forEach(function (metin, idx) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'secenek'; b.textContent = metin;
+      b.addEventListener('click', function () { cevapla(idx, b); });
+      seceneklerEl.appendChild(b);
+    });
+  }
+
+  function cevapla(idx, btn) {
+    if (kilitli) return;
+    kilitli = true;
+    var q = SORULAR[i];
+    var butonlar = seceneklerEl.children;
+    butonlar[q.d].classList.add('dogru');
+    if (idx === q.d) {
+      puan += 10;
+      geriEl.textContent = '✅ Doğru! +10 puan';
+      geriEl.className = 'geri-bildirim ok';
+    } else {
+      btn.classList.add('yanlis');
+      geriEl.textContent = '❌ Doğru cevabın yeşil olan: ' + q.sec[q.d];
+      geriEl.className = 'geri-bildirim hata';
+    }
+    var not = document.createElement('div');
+    not.className = 'neden'; not.textContent = '💡 ' + q.n;
+    geriEl.appendChild(not);
+    skorEl.textContent = 'Puan: ' + puan;
+    setTimeout(function () {
+      i++;
+      if (i < SORULAR.length) soruGoster();
+      else bitir();
+    }, 2600);
+  }
+
+  function bitir() {
+    cubukEl.style.width = '100%';
+    document.getElementById('oynaNokta').style.display = 'none';
+    document.getElementById('sonucKart').style.display = 'block';
+    document.getElementById('sonucPuan').textContent = puan + ' puan';
+    var toplam = SORULAR.length * 10;
+    var yuzde = Math.round(puan / toplam * 100);
+    var emoji = yuzde >= 80 ? '🏆' : yuzde >= 50 ? '💪' : '📚';
+    var mesaj = yuzde >= 80 ? 'Harika! Bilgisayar başında çok dikkatlisin.' : yuzde >= 50 ? 'İyi iş! Birkaç konuyu tekrar edelim.' : 'Tekrar deneyelim, birlikte öğreneceğiz.';
+    document.getElementById('sonucEmoji').textContent = emoji;
+    document.getElementById('sonucMesaj').textContent = mesaj;
+  }
+
+  soruGoster();
+})();
+</script>
+</body>
+</html>

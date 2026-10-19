@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yapay Zekâ Sıralama — Bilfen DigiQuest</title>
+<!--
+  1. SINIF - YAPAY ZEKÂ (SIRALAMA)
+  Bilfen Bilişim Zümresi tarafından Wordwall karşıtı olarak sıfırdan yazıldı.
+  Öğrenci cümleleri "Yapay Zekâ Kullanır" / "Kullanmaz" olarak sınıflandırır.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg,#0ea5e9 0%,#3b82f6 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .kart { background: #fff; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-width: 640px; width: 100%; padding: 28px; text-align: center; }
+  .rozet { display: inline-block; background: #e0f2fe; color: #0284c7; padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; margin-bottom: 12px; }
+  h1 { color: #1e293b; font-size: 24px; margin-bottom: 4px; }
+  .alt { color: #64748b; font-size: 14px; margin-bottom: 18px; line-height: 1.5; }
+  .cumbles-kart { background: linear-gradient(135deg,#6366f1,#0ea5e9); color: #fff; border-radius: 16px; padding: 22px 18px; font-size: 17px; font-weight: 700; box-shadow: 0 8px 24px rgba(99,102,241,.4); margin-bottom: 14px; line-height: 1.5; min-height: 110px; display: flex; align-items: center; justify-content: center; }
+  .cumbles-kart.sonraki-anim { animation: giris .3s ease; }
+  @keyframes giris { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .buton-satir { display: flex; gap: 10px; }
+  .btn { flex: 1; padding: 14px 10px; border: none; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; transition: transform .1s; }
+  .btn:active { transform: scale(.97); }
+  .btn-evet { background: #16a34a; color: #fff; }
+  .btn-hayir { background: #ef4444; color: #fff; }
+  .skor-kutusu { display: flex; justify-content: space-between; color: #64748b; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .geri-bildirim { min-height: 24px; font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+  .ok { color: #16a34a; } .hata { color: #dc2626; }
+  .ilerleme { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .ilerleme > div { height: 100%; background: linear-gradient(90deg,#0ea5e9,#6366f1); transition: width .3s; }
+  .sonuc { display: none; }
+  .sonuc .puan { font-size: 44px; font-weight: 900; color: #0ea5e9; margin-bottom: 12px; }
+  .btn-tek { display: inline-block; padding: 14px 40px; border: none; border-radius: 14px; background: #0ea5e9; color: #fff; font-size: 17px; font-weight: 800; cursor: pointer; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="kart">
+  <div id="oynaNokta">
+    <span class="rozet">1. SINIF · YAPAY ZEKÂ</span>
+    <h1>🤖 Yapay Zekâ Kullanır mı?</h1>
+    <p class="alt">Gelen cümleyi düşün: Yapay zekâ mı kullanır, kullanmaz mı? İki seçenekten birini seç!</p>
+    <div class="skor-kutusu"><span id="cumblesSayi">Cümle 1</span><span id="skorMetin">Puan: 0</span></div>
+    <div class="ilerleme"><div id="ilerlemeCubuk" style="width:0%"></div></div>
+    <div class="cumbles-kart" id="cumblesKart"></div>
+    <div class="geri-bildirim" id="geriBildirim"></div>
+    <div class="buton-satir">
+      <button class="btn btn-evet" id="btnEvet">✅ YAPAY ZEKÂ KULLANIR</button>
+      <button class="btn btn-hayir" id="btnHayir">❌ KULLANMAZ</button>
+    </div>
+  </div>
+  <div id="sonucKart" class="sonuc">
+    <div style="font-size:52px" id="sonucEmoji">🏆</div>
+    <div style="font-size:28px;margin-bottom:10px;font-weight:800;color:#1e293b">Bitti!</div>
+    <div class="puan" id="sonucPuan"></div>
+    <p id="sonucMesaj" style="color:#64748b"></p>
+    <button class="btn-tek" onclick="location.reload()">🔄 Tekrar Oyna</button>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var CUMLELER = [
+    { c: 'Sesli asistanla konuşup "Bugün hava nasıl?" diye sorabilirsin.', k: true },
+    { c: 'Telefonuna koyduğunuz çizimi arkadaşın elle çizdi; o resimde yapay zekâ yoktur.', k: false },
+    { c: 'Video izlerken önerilen videolar yapay zekâ tarafından seçilir.', k: true },
+    { c: 'Kağıda kalemle yazdığın mektupta hiç yapay zekâ yoktur.', k: false },
+    { c: 'Kameranın yüzünü tanıyıp kilidi açması yapay zekâ işidir.', k: true },
+    { c: 'Oyuncak ayısını rafa kaldırmak için yapay zekâ kullanmazsın.', k: false },
+    { c: 'Klavyede yazarken kelimeyi tamamlamakta yapay zekâ yardım eder.', k: true },
+    { c: 'Annenin tarifeye göre elle yaptığı pastada yapay zekâ kullanılmaz.', k: false },
+    { c: 'Arabada yol gösteren navigasyon yapay zekâ ile çalışır.', k: true },
+    { c: 'Bahçedeki çiçekleri elle sularız; yapay zekâ gerekmez.', k: false }
+  ];
+  var i = 0, puan = 0, kilitli = false;
+  var kartEl = document.getElementById('cumblesKart');
+  var sayiEl = document.getElementById('cumblesSayi');
+  var skorEl = document.getElementById('skorMetin');
+  var geriEl = document.getElementById('geriBildirim');
+  var cubukEl = document.getElementById('ilerlemeCubuk');
+
+  function karistir(liste) {
+    for (var j = liste.length - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var g = liste[j]; liste[j] = liste[k]; liste[k] = g;
+    }
+    return liste;
+  }
+  /* Cümle düzeltmeleri yukarıdaki listede yapıldı */
+  karistir(CUMLELER);
+
+  function sec(kullanir) {
+    if (kilitli) return;
+    kilitli = true;
+    var c = CUMLELER[i];
+    if (kullanir === c.k) {
+      puan += 10;
+      geriEl.textContent = '✅ Doğru! +10 puan';
+      geriEl.className = 'geri-bildirim ok';
+    } else {
+      geriEl.textContent = c.k ? '❌ Bu işte yapay zekâ VAR.' : '❌ Bu işte yapay zekâ YOK.';
+      geriEl.className = 'geri-bildirim hata';
+    }
+    skorEl.textContent = 'Puan: ' + puan;
+    setTimeout(function () {
+      i++;
+      if (i < CUMLELER.length) goster();
+      else bitir();
+    }, 1400);
+  }
+
+  function goster() {
+    kilitli = false;
+    geriEl.textContent = ''; geriEl.className = 'geri-bildirim';
+    sayiEl.textContent = 'Cümle ' + (i + 1) + ' / ' + CUMLELER.length;
+    cubukEl.style.width = (i / CUMLELER.length * 100) + '%';
+    kartEl.textContent = CUMLELER[i].c;
+  }
+
+  function bitir() {
+    cubukEl.style.width = '100%';
+    document.getElementById('oynaNokta').style.display = 'none';
+    document.getElementById('sonucKart').style.display = 'block';
+    document.getElementById('sonucPuan').textContent = puan + ' puan';
+    var toplam = CUMLELER.length * 10;
+    var yuzde = Math.round(puan / toplam * 100);
+    document.getElementById('sonucEmoji').textContent = yuzde >= 80 ? '🏆' : yuzde >= 50 ? '💪' : '📚';
+    document.getElementById('sonucMesaj').textContent = yuzde >= 80 ? 'Harika! Yapay zekâyı nerede göreceğini biliyorsun.' : yuzde >= 50 ? 'İyi iş! Birkaç örneği tekrar konuşalım.' : 'Tekrar deneyelim!';
+  }
+
+  document.getElementById('btnEvet').addEventListener('click', function () { sec(true); });
+  document.getElementById('btnHayir').addEventListener('click', function () { sec(false); });
+  document.addEventListener('keydown', function (e) {
+    var harf = (e.key || '').toLowerCase();
+    if (harf === 'e') sec(true);
+    else if (harf === 'h') sec(false);
+  });
+
+  goster();
+})();
+</script>
+</body>
+</html>
