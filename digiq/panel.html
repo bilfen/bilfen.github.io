@@ -1336,6 +1336,18 @@
     };
   }
   function ozelSiralama(a, b) { return (b.tarih || '').localeCompare(a.tarih || ''); }
+  /* (v2.9.7) ⚡ icerik sütununda tam HTML dosyaları durur (gömülü base64 görsellerle
+     MB'ları bulur). BÜTÜN satırları icerikle çekmek istekleri PostgREST'te
+     "statement timeout" (57014) ile çökertiyor → yönetici onay listesi boş
+     kalıyordu. Artık listeler icerik ÇEKMEZ; içeriği gerçekten kullanacak
+     işlem (görüntüle/indir/oynat/düzenle/yedek) burada TEK SATIR fetch ile yüklür. */
+  var OZEL_SUTUNLAR = 'id,campus_id,ogretmen_id,ogretmen_ad,ogretmen_kullanici,ad,konu,seviyeler,tip,durum,red_nedeni,onay_tarihi,olusturma_tarihi,gorsel,acilis,kapanis';
+  function ozelIcerikYukle(o) {
+    if ((o.icerik || '') !== '' || !o.id) return Promise.resolve(o);
+    return sb('ozel_etkinlik?select=icerik&id=eq.' + encodeURIComponent(o.id) + '&limit=1')
+      .then(function (rs) { o.icerik = (rs && rs[0] && rs[0].icerik) || ''; return o; })
+      .catch(function () { return o; });
+  }
   /* (v2.7.3) Düzenleme modunda kayıtlı içeriğin yüklendiğini kullanıcıya açıkça göster:
      dosya tipinde boyut bilgisi, kod tipinde editörde yüklü, drive tipinde bağlantı formada. */
   function kayitliKaynakBilgisi(o) {
@@ -1388,6 +1400,8 @@
   }
   function yonetimDuzenle(o) {
     if (!o) return;
+    /* (v2.9.7) listede icerik yok — formayı doldurmadan önce tek satır fetch */
+    ozelIcerikYukle(o).then(function () {
     oeFormuTemizle();
     oe.duzenleId = o.id;
     $('oeAd').value = o.ad || '';
@@ -1411,6 +1425,7 @@
     var yonSec = $('sekmeOlustur');
     if (yonSec) yonSec.click();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   }
 
   /* ============================================================
@@ -1564,17 +1579,17 @@
       });
     },
     /* ---------- Öğretmenin oluşturduğu özel etkinlikler (onay akışı) ----------
-       durum: bekliyor (yönetici onayı) → onaylandi (tüm kampüslerde yayın) | reddedildi */
+       durum: bekliyor (yönetici onayı) → onaylandi (tüm kampüslerde yayın) | reddedildi */    /* (v2.9.7) select=* yerine dar sütun listesi — icerik hariç (timeout düzeltmesi) */
     ozelOnaylilar: async function () {
-      var rs = await sb('ozel_etkinlik?durum=eq.onaylandi&select=*&order=olusturma_tarihi');
+      var rs = await sb('ozel_etkinlik?durum=eq.onaylandi&select=' + OZEL_SUTUNLAR + '&order=olusturma_tarihi.desc');
       return (rs || []).map(ozelSatir);
     },
     ozelEtkinliklerim: async function (s) {
-      var rs = await sb('ozel_etkinlik?ogretmen_id=eq.' + encodeURIComponent(s.id) + '&select=*&order=olusturma_tarihi');
+      var rs = await sb('ozel_etkinlik?ogretmen_id=eq.' + encodeURIComponent(s.id) + '&select=' + OZEL_SUTUNLAR + '&order=olusturma_tarihi.desc');
       return (rs || []).map(ozelSatir);
     },
     tumOzelEtkinlikler: async function () {
-      var rs = await sb('ozel_etkinlik?select=*&order=olusturma_tarihi');
+      var rs = await sb('ozel_etkinlik?select=' + OZEL_SUTUNLAR + '&order=olusturma_tarihi.desc');
       var cs = await sb('campus?select=id,ad');
       var kampusAd = {};
       (cs || []).forEach(function (c) { kampusAd[c.id] = c.ad; });
@@ -2279,7 +2294,7 @@
         b.onclick = function () {
           var id = b.getAttribute('data-oe-goster');
           var o = ozeller.filter(function (x) { return x.id === id; })[0];
-          if (o) ozelOynatAc(o.ad, o.icerik, o.tip);
+          if (o) ozelIcerikYukle(o).then(function () { ozelOynatAc(o.ad, o.icerik, o.tip); });
         };
       });
       Array.prototype.forEach.call(kutu.querySelectorAll('[data-oe-indir]'), function (b) {
@@ -2287,6 +2302,7 @@
           var id = b.getAttribute('data-oe-indir');
           var o = ozeller.filter(function (x) { return x.id === id; })[0];
           if (!o) return;
+          ozelIcerikYukle(o).then(function () {
           var icerik = o.icerik || '';
           if (o.tip === 'drive') {
             if (icerik) window.open(icerik, '_blank');
@@ -2300,6 +2316,7 @@
           document.body.appendChild(a);
           a.click();
           setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+          });
         };
       });
       Array.prototype.forEach.call(kutu.querySelectorAll('[data-oe-baglanti]'), function (b) {
@@ -2323,6 +2340,8 @@
           var id = b.getAttribute('data-oe-duzenle');
           var o = ozeller.filter(function (x) { return x.id === id; })[0];
           if (!o) return;
+          /* (v2.9.7) kayıtlı içeriği tek satır fetch ile formaya yükle */
+          ozelIcerikYukle(o).then(function () {
           oeFormuTemizle();
           oe.duzenleId = id;
           $('oeAd').value = o.ad || '';
@@ -2345,6 +2364,7 @@
           bilgiGoster($('oeBilgi'), '✏️ Düzenleme modu: \"' + o.ad + '\" — kayıtlı içerik formada yüklü, değişiklikleri yapıp tekrar kaydet.');
           $('oeKaydetBtn').textContent = '💾 Degisiklikleri Kaydet';
           window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
         };
       });
     }).catch(function (e) { console.error('ozelListeCiz hata:', e); $('oeListe').innerHTML = '<div class="hata" style="display:block">' + esc(e.message) + '</div>'; });
@@ -2421,7 +2441,7 @@
         b.onclick = function () {
           var id = b.getAttribute('data-tahta-baslat');
           var kayit = tahta.filter(function (x) { return x.id === id; })[0];
-          if (kayit && kayit.ozel) { ozelOynatAc(kayit.ozel.ad, kayit.ozel.icerik, kayit.ozel.tip); return; }
+          if (kayit && kayit.ozel) { ozelIcerikYukle(kayit.ozel).then(function () { ozelOynatAc(kayit.ozel.ad, kayit.ozel.icerik, kayit.ozel.tip); }); return; }
           var s = katalog.filter(function (x) { return x.id === id; })[0];
           if (s && s.url) window.open(s.url, '_blank', 'noopener');
         };
@@ -2670,7 +2690,7 @@
             b.onclick = function () {
               var id = b.getAttribute('data-yonet-oynat');
               var kayit = katalog.filter(function (x) { return x.id === id; })[0];
-              if (kayit && kayit.ozel) ozelOynatAc(kayit.ozel.ad, kayit.ozel.icerik, kayit.ozel.tip);
+              if (kayit && kayit.ozel) ozelIcerikYukle(kayit.ozel).then(function () { ozelOynatAc(kayit.ozel.ad, kayit.ozel.icerik, kayit.ozel.tip); });
             };
           });
         });
@@ -2746,7 +2766,7 @@
           b.onclick = function () {
             var id = b.getAttribute('data-ozel-oyna');
             var kayit = katalog.filter(function (x) { return x.id === id; })[0];
-            if (kayit && kayit.ozel) ozelOynatAc(kayit.ad, kayit.ozel.icerik, kayit.ozel.tip);
+            if (kayit && kayit.ozel) ozelIcerikYukle(kayit.ozel).then(function () { ozelOynatAc(kayit.ad, kayit.ozel.icerik, kayit.ozel.tip); });
           };
         });
         Array.prototype.forEach.call(kutu.querySelectorAll('[data-tamamla]'), function (b) {
@@ -2856,18 +2876,21 @@
       Array.prototype.forEach.call(kutu.querySelectorAll('[data-onay-goster]'), function (b) {
         b.onclick = function () {
           var o = ozeller.filter(function (x) { return x.id === b.getAttribute('data-onay-goster'); })[0];
-          if (o) ozelOynatAc(o.ad, o.icerik, o.tip);
+          if (o) ozelIcerikYukle(o).then(function () { ozelOynatAc(o.ad, o.icerik, o.tip); });
         };
       });
       Array.prototype.forEach.call(kutu.querySelectorAll('[data-onay-indir]'), function (b) {
         b.onclick = function () {
           var o = ozeller.filter(function (x) { return x.id === b.getAttribute('data-onay-indir'); })[0];
           if (!o) return;
+          ozelIcerikYukle(o).then(function () {
           var icerik = o.icerik || '';
           if (o.tip === 'drive') {
             if (icerik) window.open(icerik, '_blank');
             return;
           }
+          /* (düzeltme) dosyaAdi bu kapsamda tanımlı değildi → yedek indir. İndirme adı artık hesaplanır */
+          var dosyaAdi = (o.ad || 'etkinlik').replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ\s]/g, '').replace(/\s+/g, '_') + '.html';
           var blob = new Blob([icerik], { type: 'text/html;charset=utf-8' });
           var a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
@@ -2875,6 +2898,7 @@
           document.body.appendChild(a);
           a.click();
           setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+          });
         };
       });
       Array.prototype.forEach.call(kutu.querySelectorAll('[data-onay-baglanti]'), function (b) {
@@ -2984,7 +3008,7 @@
     Array.prototype.forEach.call(kutu.querySelectorAll('[data-ety-goster]'), function (b) {
       b.onclick = function () {
         var o = ozeller.filter(function (x) { return x.id === b.getAttribute('data-ety-goster'); })[0];
-        if (o) ozelOynatAc(o.ad, o.icerik, o.tip);
+        if (o) ozelIcerikYukle(o).then(function () { ozelOynatAc(o.ad, o.icerik, o.tip); });
       };
     });
     Array.prototype.forEach.call(kutu.querySelectorAll('[data-ety-onayla]'), function (b) {
@@ -3024,9 +3048,12 @@
       try {
         /* Önce html2canvas ile gerçek screenshot dene */
         var gorsel = gorselOlustur(o.ad, o.tip, o.konu);
-        if (o.tip !== 'drive' && o.icerik) {
-          var realGorsel = await gorselCek(o.icerik);
-          if (realGorsel) gorsel = realGorsel;
+        if (o.tip !== 'drive') {
+          await ozelIcerikYukle(o);
+          if (o.icerik) {
+            var realGorsel = await gorselCek(o.icerik);
+            if (realGorsel) gorsel = realGorsel;
+          }
         }
         await sb('ozel_etkinlik?id=eq.' + encodeURIComponent(o.id), { method: 'PATCH', body: { gorsel: gorsel } });
         tamamlanan++;
@@ -3066,8 +3093,23 @@
       } catch (e) {}
       return Promise.resolve(veri);
     }
+    /* (v2.9.7) ozel_etkinlik'te icerik tüm satırlarla birlikte çekilince yedek
+       isteği de statement timeout'la çöküyordu; satırlar dar sütunlarla alınır,
+       icerik satır satır ayrı istekle tamamlanır. */
     var isler = tablolar.map(function (t) {
-      return sb(t + '?select=*').catch(function () { return []; });
+      if (t !== 'ozel_etkinlik') return sb(t + '?select=*').catch(function () { return []; });
+      return sb('ozel_etkinlik?select=' + OZEL_SUTUNLAR + '&order=olusturma_tarihi.desc').then(function (satirlar) {
+        var liste = satirlar || [];
+        var zincir = Promise.resolve();
+        liste.forEach(function (s) {
+          zincir = zincir.then(function () {
+            return sb('ozel_etkinlik?select=icerik&id=eq.' + encodeURIComponent(s.id) + '&limit=1')
+              .then(function (rs) { s.icerik = (rs && rs[0]) ? (rs[0].icerik || '') : ''; })
+              .catch(function () { s.icerik = ''; });
+          });
+        });
+        return zincir.then(function () { return liste; });
+      }).catch(function () { return []; });
     });
     return Promise.all(isler).then(function (sonuclar) {
       var veri = {};
