@@ -1341,11 +1341,20 @@
      "statement timeout" (57014) ile çökertiyor → yönetici onay listesi boş
      kalıyordu. Artık listeler icerik ÇEKMEZ; içeriği gerçekten kullanacak
      işlem (görüntüle/indir/oynat/düzenle/yedek) burada TEK SATIR fetch ile yüklür. */
-  var OZEL_SUTUNLAR = 'id,campus_id,ogretmen_id,ogretmen_ad,ogretmen_kullanici,ad,konu,seviyeler,tip,durum,red_nedeni,onay_tarihi,olusturma_tarihi,gorsel,acilis,kapanis';
+  var OZEL_SUTUNLAR = 'id,campus_id,ogretmen_id,ogretmen_ad,ogretmen_kullanici,ad,konu,seviyeler,tip,durum,red_nedeni,onay_tarihi,olusturma_tarihi,acilis,kapanis';
+  /* gorsel de base64'tür (MB'ları bulabilir); yalnız kart önizlemesi çizen liste (ozelOnaylilar) onu ister */
+  var OZEL_SUTUNLAR_GORSELLI = OZEL_SUTUNLAR + ',gorsel';
   function ozelIcerikYukle(o) {
-    if ((o.icerik || '') !== '' || !o.id) return Promise.resolve(o);
-    return sb('ozel_etkinlik?select=icerik&id=eq.' + encodeURIComponent(o.id) + '&limit=1')
-      .then(function (rs) { o.icerik = (rs && rs[0] && rs[0].icerik) || ''; return o; })
+    if ((o.icerik || '') !== '' && (o.gorsel || '') !== '') return Promise.resolve(o);
+    if (!o.id) return Promise.resolve(o);
+    return sb('ozel_etkinlik?select=icerik,gorsel&id=eq.' + encodeURIComponent(o.id) + '&limit=1')
+      .then(function (rs) {
+        if (rs && rs[0]) {
+          if ((o.icerik || '') === '') o.icerik = rs[0].icerik || '';
+          if ((o.gorsel || '') === '') o.gorsel = rs[0].gorsel || '';
+        }
+        return o;
+      })
       .catch(function () { return o; });
   }
   /* (v2.7.3) Düzenleme modunda kayıtlı içeriğin yüklendiğini kullanıcıya açıkça göster:
@@ -1579,9 +1588,10 @@
       });
     },
     /* ---------- Öğretmenin oluşturduğu özel etkinlikler (onay akışı) ----------
-       durum: bekliyor (yönetici onayı) → onaylandi (tüm kampüslerde yayın) | reddedildi */    /* (v2.9.7) select=* yerine dar sütun listesi — icerik hariç (timeout düzeltmesi) */
+       durum: bekliyor (yönetici onayı) → onaylandi (tüm kampüslerde yayın) | reddedildi */    /* (v2.9.7) select=* yerine dar sütun listesi — icerik hariç (timeout düzeltmesı);
+       onaylılar listesi ayrıca gorsel taşır (katalog kartlarının gerçek önizlemeleri için). */
     ozelOnaylilar: async function () {
-      var rs = await sb('ozel_etkinlik?durum=eq.onaylandi&select=' + OZEL_SUTUNLAR + '&order=olusturma_tarihi.desc');
+      var rs = await sb('ozel_etkinlik?durum=eq.onaylandi&select=' + OZEL_SUTUNLAR_GORSELLI + '&order=olusturma_tarihi.desc');
       return (rs || []).map(ozelSatir);
     },
     ozelEtkinliklerim: async function (s) {
@@ -2946,6 +2956,8 @@
   function onaylaEtkinlik(o, bilgiEl, hataEl, sonrasi) {
     if (!o) return Promise.resolve();
     bilgiGoster(bilgiEl, '');
+    /* (v2.9.7) listede gorsel gelmiyor olabilir → kayıtlı gerçek görseli bozmamak için önce tek satır fetch */
+    return ozelIcerikYukle(o).then(function () {
     /* Görsel yoksa anlık SVG oluştur */
     var gorsel = o.gorsel ? o.gorsel : (o.tip !== 'drive' ? gorselOlustur(o.ad, o.tip, o.konu) : '');
     var islemler = [API.ozelOnayla(o.id)];
@@ -2964,6 +2976,7 @@
       if (sonrasi) sonrasi();
       setTimeout(function () { bilgiGoster(bilgiEl, ''); }, 3500);
     }).catch(function (e) { hataGoster(hataEl, e.message); });
+    });
   }
   function reddetEtkinlik(o, neden, bilgiEl, hataEl, sonrasi) {
     if (!o) return Promise.resolve();
@@ -3103,9 +3116,12 @@
         var zincir = Promise.resolve();
         liste.forEach(function (s) {
           zincir = zincir.then(function () {
-            return sb('ozel_etkinlik?select=icerik&id=eq.' + encodeURIComponent(s.id) + '&limit=1')
-              .then(function (rs) { s.icerik = (rs && rs[0]) ? (rs[0].icerik || '') : ''; })
-              .catch(function () { s.icerik = ''; });
+            return sb('ozel_etkinlik?select=icerik,gorsel&id=eq.' + encodeURIComponent(s.id) + '&limit=1')
+              .then(function (rs) {
+                s.icerik = (rs && rs[0]) ? (rs[0].icerik || '') : '';
+                s.gorsel = (rs && rs[0]) ? (rs[0].gorsel || '') : '';
+              })
+              .catch(function () { s.icerik = ''; s.gorsel = ''; });
           });
         });
         return zincir.then(function () { return liste; });
