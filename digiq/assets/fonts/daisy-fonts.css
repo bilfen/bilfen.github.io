@@ -1,0 +1,37 @@
+/* Daisy Days (hyperframes frame-preset) — Fredoka + Quicksand, self-hosted */
+
+/* Fredoka (değişken 300-700) — latin */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url(fredoka-var-latin.woff2) format('woff2');
+}
+
+/* Fredoka (değişken 300-700) — latin-ext */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url(fredoka-var-latin-ext.woff2) format('woff2');
+}
+
+/* Quicksand (değişken 300-700) — latin */
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url(quicksand-var-latin.woff2) format('woff2');
+}
+
+/* Quicksand (değişken 300-700) — latin-ext */
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url(quicksand-var-latin-ext.woff2) format('woff2');
+}

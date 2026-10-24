@@ -14,6 +14,9 @@
 <link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/portal.css">
 <link rel="stylesheet" href="assets/etkinlik-detay.css">
+
+<link rel="stylesheet" href="assets/fonts/daisy-fonts.css">
+<link rel="stylesheet" href="assets/daisy-days.css">
 <script>
 /* Tema FOUC önleyici */
 (function () { try { var t = localStorage.getItem('bt_tema'); if (t === 'koyu') document.documentElement.setAttribute('data-tema', 'koyu'); } catch (e) {} })();
@@ -238,14 +241,18 @@
   try { id = decodeURIComponent((location.search || '').match(/[?&]id=([^&]+)/) ? RegExp.$1 : ''); } catch (e) {}
   if (!id) { var m = (location.hash || '').match(/^#etkinlik=(.+)$/); if (m) id = decodeURIComponent(m[1]); }
 
-  var hepsi = (window.ETKINLIKLER || []).concat(window.OZEL_ETKINLIKLER || []);
-  var etkinlik = null;
-  for (var i = 0; i < hepsi.length; i++) { if (hepsi[i].id === id) { etkinlik = hepsi[i]; break; } }
+  /* (v2.9.7) Özel etkinlikler Supabase'den ASenkRON yüklenir: portal-data.js'in
+     ozelEtkinlikleriYukle() promise'i tamamlanmadan listede arama yapılırsa
+     'Etkinlik bulunamadı' gösteriliyordu — portaldaki 'Tam sayfa' bağlantısı
+     (etkinlik.html?id=ozel_…) boşa düşüyordu. Artık bulunamayan id için önce
+     asenkron yükleme beklenir; yine yoksa bulunamadı ekranı gösterilir. */
+  function etkinlikBul() {
+    var hepsi = (window.ETKINLIKLER || []).concat(window.OZEL_ETKINLIKLER || []);
+    for (var i = 0; i < hepsi.length; i++) { if (hepsi[i].id === id) return hepsi[i]; }
+    return null;
+  }
 
-  var KATEGORILER = window.KATEGORILER || [];
-  var KATEGORI_RENK = window.KATEGORI_RENK || [];
-
-  if (!etkinlik) {
+  function bulunamadiGoster() {
     document.title = 'Etkinlik bulunamadı — Bilfen DigiQuest';
     $('detayBaslik').textContent = 'Etkinlik bulunamadı 🤔';
     $('detayAciklama').textContent = 'Bağlantı eksik veya etkinlik kaldırılmış olabilir. Etkinlikler sayfasından dilediğinizi seçebilirsiniz.';
@@ -253,8 +260,14 @@
     $('baslatBtn').disabled = $('baslatBtn2').disabled = true;
     $('linkKopyalaBtn').hidden = true;
     var yS = $('yeniSekmeBtn'); if (yS) yS.hidden = true;
-    return;
   }
+
+  var KATEGORILER = window.KATEGORILER || [];
+  var KATEGORI_RENK = window.KATEGORI_RENK || [];
+
+  function goster() {
+  var etkinlik = etkinlikBul();
+  if (!etkinlik) { bulunamadiGoster(); return; }
 
   /* Başlat: portalın derin bağlantısına gider (oynatma penceresi, kapı kontrolü, TTS korunur)
      (v2) Portal seviye kilidi açıkken: öğrenci yalnız kendi sınıfının etkinliğini başlatabilir;
@@ -367,6 +380,21 @@
 
   /* TTS metni */
   ttsMetin = etkinlik.ad + '. ' + (etkinlik.aciklama || '') + (etkinlik.amac ? ' Amaç: ' + etkinlik.amac : '');
+  } /* goster() sonu */
+
+  if (etkinlikBul()) {
+    goster();
+  } else {
+    var kapiId = ['detayBaslik'];
+    $('detayBaslik').textContent = 'Etkinlik yükleniyor…';
+    var yukleniyor = null;
+    try { if (typeof ozelEtkinlikleriYukle === 'function') yukleniyor = ozelEtkinlikleriYukle(); } catch (e) { yukleniyor = null; }
+    if (yukleniyor && typeof yukleniyor.then === 'function') {
+      yukleniyor.then(function () { goster(); }).catch(function () { bulunamadiGoster(); });
+    } else {
+      bulunamadiGoster();
+    }
+  }
 })();
 </script>
 </body>
